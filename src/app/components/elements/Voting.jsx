@@ -2,7 +2,6 @@ import React from 'react';
 import { connect } from 'react-redux';
 import Slider from 'react-rangeslider';
 import tt from 'counterpart';
-import CloseButton from 'react-foundation-components/lib/global/close-button';
 import * as transactionActions from 'app/redux/TransactionReducer';
 import Icon from 'app/components/elements/Icon';
 import FormattedAsset from 'app/components/elements/FormattedAsset';
@@ -13,7 +12,7 @@ import {
 } from 'app/utils/ParsersAndFormatters';
 import DropdownMenu from 'app/components/elements/DropdownMenu';
 import TimeAgoWrapper from 'app/components/elements/TimeAgoWrapper';
-import FoundationDropdown from 'app/components/elements/FoundationDropdown';
+import Dropdown from 'app/components/elements/Dropdown';
 
 const ABOUT_FLAG = (
     <div>
@@ -35,6 +34,16 @@ const ABOUT_FLAG = (
 
 const MAX_VOTES_DISPLAY = 20;
 const VOTE_WEIGHT_DROPDOWN_THRESHOLD = 1.0 * 1000.0 * 1000.0;
+
+const FLAG_WARNING = <div>
+    <p>Flagging a post can remove rewards and make this material less visible. Some common reasons to flag</p>
+        <ul>
+            <li>Disagreement on rewards</li>
+            <li>Fraud or Plagiarism</li>
+            <li>Hate Speech or Internet Trolling</li>
+            <li>Intentional miss-categorized content or Spam</li>
+        </ul>
+</div>
 
 class Voting extends React.Component {
     static propTypes = {
@@ -73,10 +82,12 @@ class Voting extends React.Component {
             e.preventDefault();
             this.voteUpOrDown(true);
         };
+
         this.voteDown = e => {
             e.preventDefault();
             this.voteUpOrDown(false);
         };
+
         this.voteUpOrDown = up => {
             if (this.props.voting) return;
             this.setState({ votingUp: up, votingDown: !up });
@@ -100,12 +111,14 @@ class Voting extends React.Component {
                 : myVote < 0 ? 0 : -1 * this.state.weight;
             if (this.state.showWeight) this.setState({ showWeight: false });
             const isFlag = this.props.flag ? true : null;
+
             this.props.vote(weight, {
                 author,
                 permlink,
                 username,
                 myVote,
                 isFlag,
+                up,
             });
         };
 
@@ -196,50 +209,6 @@ class Voting extends React.Component {
                 (myVote < 0 ? ' Voting__button--downvoted' : '') +
                 (votingDownActive ? ' votingDown' : '');
             const flagWeight = post_obj.getIn(['stats', 'flagWeight']);
-
-            // myVote === current vote
-            const dropdown = (
-                <FoundationDropdown
-                    show={showWeight}
-                    onHide={() => this.setState({ showWeight: false })}
-                    className="Voting__adjust_weight_down"
-                >
-                    {(myVote == null || myVote === 0) &&
-                        net_vesting_shares > VOTE_WEIGHT_DROPDOWN_THRESHOLD && (
-                            <div className="weight-container">
-                                <div className="weight-display">
-                                    - {weight / 100}%
-                                </div>
-                                <Slider
-                                    min={100}
-                                    max={10000}
-                                    step={100}
-                                    value={weight}
-                                    onChange={this.handleWeightChange}
-                                />
-                            </div>
-                        )}
-                    <CloseButton
-                        onClick={() => this.setState({ showWeight: false })}
-                    />
-                    <div className="clear Voting__about-flag">
-                        <p>{ABOUT_FLAG}</p>
-                        <a
-                            href="#"
-                            onClick={this.voteDown}
-                            className="button outline"
-                            title="Flag"
-                        >
-                            Flag
-                        </a>
-                    </div>
-                </FoundationDropdown>
-            );
-
-            const flagClickAction =
-                myVote === null || myVote === 0
-                    ? this.toggleWeightDown
-                    : this.voteDown;
             return (
                 <span className="Voting">
                     <span className={classDown}>
@@ -251,11 +220,10 @@ class Voting extends React.Component {
                         {votingDownActive ? (
                             down
                         ) : (
-                            <a href="#" onClick={flagClickAction} title="Flag">
+                            <a href="#" onClick={this.voteDown} title="Flag">
                                 {down}
                             </a>
                         )}
-                        {dropdown}
                     </span>
                 </span>
             );
@@ -409,14 +377,28 @@ class Voting extends React.Component {
 
         let voteUpClick = this.voteUp;
         let dropdown = null;
+        let voteChevron = votingUpActive ? (
+            up
+        ) : (
+            <a
+                href="#"
+                onClick={voteUpClick}
+                title={myVote > 0 ? tt('g.remove_vote') : tt('g.upvote')}
+            >
+                {up}
+            </a>
+        );
         if (
             myVote <= 0 &&
             net_vesting_shares > VOTE_WEIGHT_DROPDOWN_THRESHOLD
         ) {
             voteUpClick = this.toggleWeightUp;
+            voteChevron = null;
             dropdown = (
-                <FoundationDropdown
-                    show={showWeight}
+                <Dropdown
+                    selected={tt('g.rewards')}
+                    position="right"
+                    title={up}
                     onHide={() => this.setState({ showWeight: false })}
                 >
                     <div className="Voting__adjust_weight">
@@ -436,33 +418,15 @@ class Voting extends React.Component {
                             value={weight}
                             onChange={this.handleWeightChange}
                         />
-                        <CloseButton
-                            className="Voting__adjust_weight_close"
-                            onClick={() => this.setState({ showWeight: false })}
-                        />
                     </div>
-                </FoundationDropdown>
+                </Dropdown>
             );
         }
         return (
             <span className="Voting">
                 <span className="Voting__inner">
                     <span className={classUp}>
-                        {votingUpActive ? (
-                            up
-                        ) : (
-                            <a
-                                href="#"
-                                onClick={voteUpClick}
-                                title={
-                                    myVote > 0
-                                        ? tt('g.remove_vote')
-                                        : tt('g.upvote')
-                                }
-                            >
-                                {up}
-                            </a>
-                        )}
+                        {voteChevron}
                         {dropdown}
                     </span>
                     {payoutEl}
@@ -520,9 +484,9 @@ export default connect(
 
     // mapDispatchToProps
     dispatch => ({
-        vote: (weight, { author, permlink, username, myVote, isFlag }) => {
+        vote: (weight, { author, permlink, username, myVote, isFlag, up }) => {
             const confirm = () => {
-                if (myVote == null) return null;
+                if (up === true && weight !== 0) return null;
                 const t = isFlag
                     ? ''
                     : ' ' +
@@ -534,7 +498,7 @@ export default connect(
                 if (weight > 0)
                     return tt('voting_jsx.changing_to_an_upvote') + t;
                 if (weight < 0)
-                    return tt('voting_jsx.changing_to_a_downvote') + t;
+                    return (FLAG_WARNING)
                 return null;
             };
             dispatch(
