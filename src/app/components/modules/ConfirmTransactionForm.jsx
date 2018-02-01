@@ -3,6 +3,8 @@ import { connect } from 'react-redux';
 import * as transactionActions from 'app/redux/TransactionReducer';
 import { findParent } from 'app/utils/DomUtils';
 import tt from 'counterpart';
+import * as voteActions from 'app/redux/VoteReducer';
+import Slider from 'react-rangeslider';
 
 class ConfirmTransactionForm extends Component {
     static propTypes = {
@@ -10,6 +12,8 @@ class ConfirmTransactionForm extends Component {
         onCancel: PropTypes.func,
         warning: PropTypes.string,
         checkbox: PropTypes.string,
+        weight: PropTypes.number,
+        updateWeight: PropTypes.func,
         // redux-form
         confirm: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
         confirmBroadcastOperation: PropTypes.object,
@@ -36,8 +40,20 @@ class ConfirmTransactionForm extends Component {
         if (onCancel) onCancel();
     };
     okClick = () => {
-        const { okClick, confirmBroadcastOperation } = this.props;
-        okClick(confirmBroadcastOperation);
+        const { okClick, confirmBroadcastOperation, weight } = this.props;
+        // User had the opportunity to adjust the voting weight?
+        const showVoteWeightSlider = confirmBroadcastOperation.getIn([
+            'operation',
+            'showVoteWeightSlider',
+        ]);
+        // If user was shown the voting slider, take the updated weight from the store.
+        if (showVoteWeightSlider) {
+            const updatedBroadcastOperation = confirmBroadcastOperation.setIn(
+                ['operation', 'weight'],
+                weight
+            );
+            okClick(updatedBroadcastOperation);
+        } else okClick(confirmBroadcastOperation);
     };
     onCheckbox = e => {
         const checkboxChecked = e.target.checked;
@@ -50,13 +66,35 @@ class ConfirmTransactionForm extends Component {
             confirmBroadcastOperation,
             warning,
             checkbox,
+            updateWeight,
+            weight,
         } = this.props;
+        const showVoteWeightSlider = confirmBroadcastOperation.getIn([
+            'operation',
+            'showVoteWeightSlider',
+        ]);
         const { checkboxChecked } = this.state;
         const conf = typeof confirm === 'function' ? confirm() : confirm;
         return (
             <div className="ConfirmTransactionForm">
                 <h4>{typeName(confirmBroadcastOperation)}</h4>
                 <hr />
+                {showVoteWeightSlider && (
+                    <div>
+                        <div className="Voting__adjust_weight">
+                            <div className="weight-display">
+                                {weight / 100}%
+                            </div>
+                            <Slider
+                                min={100}
+                                max={10000}
+                                step={100}
+                                value={weight}
+                                onChange={updateWeight}
+                            />
+                        </div>
+                    </div>
+                )}
                 <div>{conf}</div>
                 {warning ? (
                     <div
@@ -128,16 +166,21 @@ export default connect(
         const confirm = state.transaction.get('confirm');
         const warning = state.transaction.get('warning');
         const checkbox = state.transaction.get('checkbox');
+        const weight = state.vote.get('weight');
         return {
             confirmBroadcastOperation,
             confirmErrorCallback,
             confirm,
             warning,
             checkbox,
+            weight,
         };
     },
     // mapDispatchToProps
     dispatch => ({
+        updateWeight: weight => {
+            dispatch(voteActions.updateWeight({ weight }));
+        },
         okClick: confirmBroadcastOperation => {
             dispatch(transactionActions.hideConfirm());
             dispatch(

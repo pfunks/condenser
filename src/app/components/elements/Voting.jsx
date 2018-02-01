@@ -3,6 +3,7 @@ import { connect } from 'react-redux';
 import Slider from 'react-rangeslider';
 import tt from 'counterpart';
 import * as transactionActions from 'app/redux/TransactionReducer';
+import * as voteActions from 'app/redux/VoteReducer';
 import Icon from 'app/components/elements/Icon';
 import FormattedAsset from 'app/components/elements/FormattedAsset';
 import shouldComponentUpdate from 'app/utils/shouldComponentUpdate';
@@ -35,15 +36,20 @@ const ABOUT_FLAG = (
 const MAX_VOTES_DISPLAY = 20;
 const VOTE_WEIGHT_DROPDOWN_THRESHOLD = 1.0 * 1000.0 * 1000.0;
 
-const FLAG_WARNING = <div>
-    <p>Flagging a post can remove rewards and make this material less visible. Some common reasons to flag</p>
+const FLAG_WARNING = (
+    <div>
+        <p>
+            Flagging a post can remove rewards and make this material less
+            visible. Some common reasons to flag
+        </p>
         <ul>
             <li>Disagreement on rewards</li>
             <li>Fraud or Plagiarism</li>
             <li>Hate Speech or Internet Trolling</li>
             <li>Intentional miss-categorized content or Spam</li>
         </ul>
-</div>
+    </div>
+);
 
 class Voting extends React.Component {
     static propTypes = {
@@ -63,6 +69,7 @@ class Voting extends React.Component {
         post_obj: React.PropTypes.object,
         net_vesting_shares: React.PropTypes.number,
         voting: React.PropTypes.bool,
+        weight: React.PropTypes.number,
     };
 
     static defaultProps = {
@@ -75,8 +82,9 @@ class Voting extends React.Component {
         this.state = {
             showWeight: false,
             myVote: null,
-            weight: 10000,
         };
+
+        this.shouldComponentUpdate = shouldComponentUpdate(this, 'Voting');
 
         this.voteUp = e => {
             e.preventDefault();
@@ -91,39 +99,45 @@ class Voting extends React.Component {
         this.voteUpOrDown = up => {
             if (this.props.voting) return;
             this.setState({ votingUp: up, votingDown: !up });
-            const { myVote } = this.state;
-            const { author, permlink, username, is_comment } = this.props;
-            if (
-                this.props.net_vesting_shares > VOTE_WEIGHT_DROPDOWN_THRESHOLD
-            ) {
+            const { myVote, showWeight } = this.state;
+            const {
+                author,
+                permlink,
+                username,
+                is_comment,
+                updateWeight,
+                weight,
+                vote,
+                net_vesting_shares,
+                flag,
+            } = this.props;
+            if (net_vesting_shares > VOTE_WEIGHT_DROPDOWN_THRESHOLD) {
                 localStorage.setItem(
                     'voteWeight' +
                         (up ? '' : 'Down') +
                         '-' +
                         username +
                         (is_comment ? '-comment' : ''),
-                    this.state.weight
+                    weight
                 );
             }
             // already voted Up, remove the vote
-            const weight = up
-                ? myVote > 0 ? 0 : this.state.weight
-                : myVote < 0 ? 0 : -1 * this.state.weight;
-            if (this.state.showWeight) this.setState({ showWeight: false });
-            const isFlag = this.props.flag ? true : null;
-
-            this.props.vote(weight, {
+            const calculatedWeight = up
+                ? myVote > 0 ? 0 : weight
+                : myVote < 0 ? 0 : -1 * weight;
+            if (showWeight) this.setState({ showWeight: false });
+            const isFlag = flag ? true : null;
+            const showVoteWeightSlider =
+                net_vesting_shares > VOTE_WEIGHT_DROPDOWN_THRESHOLD;
+            vote(calculatedWeight, {
                 author,
                 permlink,
                 username,
                 myVote,
                 isFlag,
                 up,
+                showVoteWeightSlider,
             });
-        };
-
-        this.handleWeightChange = weight => {
-            this.setState({ weight });
         };
 
         this.toggleWeightUp = e => {
@@ -138,7 +152,7 @@ class Voting extends React.Component {
             const { username, is_comment } = this.props;
             // Upon opening dialog, read last used weight (this works accross tabs)
             if (!this.state.showWeight) {
-                localStorage.removeItem('vote_weight'); // deprecated. remove this line after 8/31
+                localStorage.removeItem('vote_weight'); // deprecated. remove this      line after 8/31
                 const saved_weight = localStorage.getItem(
                     'voteWeight' +
                         (up ? '' : 'Down') +
@@ -152,7 +166,6 @@ class Voting extends React.Component {
             }
             this.setState({ showWeight: !this.state.showWeight });
         };
-        this.shouldComponentUpdate = shouldComponentUpdate(this, 'Voting');
     }
 
     componentWillMount() {
@@ -185,9 +198,11 @@ class Voting extends React.Component {
             net_vesting_shares,
             is_comment,
             post_obj,
+            username,
+            weight,
+            updateWeight,
         } = this.props;
-        const { username } = this.props;
-        const { votingUp, votingDown, showWeight, weight, myVote } = this.state;
+        const { votingUp, votingDown, showWeight, myVote } = this.state;
         // console.log('-- Voting.render -->', myVote, votingUp, votingDown);
         if (flag && !username) return null;
 
@@ -416,7 +431,7 @@ class Voting extends React.Component {
                             max={10000}
                             step={100}
                             value={weight}
-                            onChange={this.handleWeightChange}
+                            onChange={updateWeight}
                         />
                     </div>
                 </Dropdown>
@@ -440,13 +455,13 @@ class Voting extends React.Component {
 export default connect(
     // mapStateToProps
     (state, ownProps) => {
+        const weight = state.vote.get('weight');
         const post = state.global.getIn(['content', ownProps.post]);
         if (!post) return ownProps;
         const author = post.get('author');
         const permlink = post.get('permlink');
         const active_votes = post.get('active_votes');
         const is_comment = post.get('parent_author') !== '';
-
         const current_account = state.user.get('current');
         const username = current_account
             ? current_account.get('username')
@@ -465,7 +480,6 @@ export default connect(
         const voting = state.global.get(
             `transaction_vote_active_${author}_${permlink}`
         );
-
         return {
             post: ownProps.post,
             flag: ownProps.flag,
@@ -479,12 +493,27 @@ export default connect(
             post_obj: post,
             loggedin: username != null,
             voting,
+            weight,
         };
     },
 
     // mapDispatchToProps
     dispatch => ({
-        vote: (weight, { author, permlink, username, myVote, isFlag, up }) => {
+        updateWeight: weight => {
+            dispatch(voteActions.updateWeight({ weight }));
+        },
+        vote: (
+            weight,
+            {
+                author,
+                permlink,
+                username,
+                myVote,
+                isFlag,
+                up,
+                showVoteWeightSlider,
+            }
+        ) => {
             const confirm = () => {
                 if (up === true && weight !== 0) return null;
                 const t = isFlag
@@ -497,8 +526,7 @@ export default connect(
                     return tt('voting_jsx.removing_your_vote') + t;
                 if (weight > 0)
                     return tt('voting_jsx.changing_to_an_upvote') + t;
-                if (weight < 0)
-                    return (FLAG_WARNING)
+                if (weight < 0) return FLAG_WARNING;
                 return null;
             };
             dispatch(
@@ -506,6 +534,7 @@ export default connect(
                     type: 'vote',
                     operation: {
                         voter: username,
+                        showVoteWeightSlider,
                         author,
                         permlink,
                         weight,
