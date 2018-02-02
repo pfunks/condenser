@@ -13,7 +13,7 @@ class ConfirmTransactionForm extends Component {
         warning: PropTypes.string,
         checkbox: PropTypes.string,
         weight: PropTypes.number,
-        updateWeight: PropTypes.func,
+        updateWeightNegative: PropTypes.func,
         // redux-form
         confirm: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
         confirmBroadcastOperation: PropTypes.object,
@@ -66,7 +66,7 @@ class ConfirmTransactionForm extends Component {
             confirmBroadcastOperation,
             warning,
             checkbox,
-            updateWeight,
+            updateWeightNegative,
             weight,
         } = this.props;
         const showVoteWeightSlider = confirmBroadcastOperation.getIn([
@@ -81,6 +81,8 @@ class ConfirmTransactionForm extends Component {
                 <hr />
                 {showVoteWeightSlider && (
                     <div>
+                    {console.log('INIT WEIGHT', weight)}
+                        
                         <div className="Voting__adjust_weight">
                             <div className="weight-display">
                                 {weight / 100}%
@@ -89,8 +91,9 @@ class ConfirmTransactionForm extends Component {
                                 min={100}
                                 max={10000}
                                 step={100}
-                                value={weight}
-                                onChange={updateWeight}
+                                // Cast a negative weight value to positive so the slider can handle it...
+                                value={weight * -1}
+                                onChange={updateWeightNegative}
                             />
                         </div>
                     </div>
@@ -178,8 +181,10 @@ export default connect(
     },
     // mapDispatchToProps
     dispatch => ({
-        updateWeight: weight => {
-            dispatch(voteActions.updateWeight({ weight }));
+        // Hack to cast the slider values to negative.
+        updateWeightNegative: weight => {
+            const negativeWeight = weight * -1;
+            dispatch(voteActions.updateWeight({ weight: negativeWeight}));
         },
         okClick: confirmBroadcastOperation => {
             dispatch(transactionActions.hideConfirm());
