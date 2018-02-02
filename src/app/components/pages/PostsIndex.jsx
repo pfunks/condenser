@@ -82,19 +82,21 @@ class PostsIndex extends React.Component {
         this.setState({ showSpam: !this.state.showSpam });
     };
     render() {
+        const { username, accounts, routeParams, status, loading, blogmode } = this.props;
         let {
             category,
             order = constants.DEFAULT_SORT_ORDER,
-        } = this.props.routeParams;
+        } = routeParams;
         let topics_order = order;
         let posts = [];
         let emptyText = '';
+        
         if (category === 'feed') {
             const account_name = order.slice(1);
             order = 'by_feed';
             topics_order = 'trending';
-            posts = this.props.accounts.getIn([account_name, 'feed']);
-            const isMyAccount = this.props.username === account_name;
+            posts = accounts.getIn([account_name, 'feed']);
+            const isMyAccount = username === account_name;
             if (isMyAccount) {
                 emptyText = (
                     <div>
@@ -139,12 +141,11 @@ class PostsIndex extends React.Component {
             }
         }
 
-        const status = this.props.status
-            ? this.props.status.getIn([category || '', order])
+        const currentStatus = status
+            ? status.getIn([category || '', order])
             : null;
-        const fetching = (status && status.fetching) || this.props.loading;
+        const fetching = (currentStatus && currentStatus.fetching) || loading;
         const { showSpam } = this.state;
-
 
         const sort_orders = [
             ['trending', tt('main_menu.trending')],
@@ -152,19 +153,17 @@ class PostsIndex extends React.Component {
             ['hot', tt('main_menu.hot')],
             ['promoted', tt('g.promoted')],
         ];
-        if (current_account_name)
+        if (username)
             sort_orders.unshift(['home', tt('header_jsx.home')]);
         const sort_order_menu = sort_orders
             .filter(so => so[0] !== sort_order)
             .map(so => ({
-                link: sortOrderToLink(so[0], topic, current_account_name),
+                link: sortOrderToLink(so[0], topic, username),
                 value: so[1],
             }));
         const selected_sort_order = sort_orders.find(
             so => so[0] === sort_order
         );
-
-        
 
         // If we're at one of the four sort order routes without a tag filter,
         // use the translated string for that sort order, f.ex "trending"
@@ -176,7 +175,7 @@ class PostsIndex extends React.Component {
         // Logged-in:
         // At homepage (@user/feed) say "My feed"
         let page_title = 'Posts'; // sensible default here?
-        if (typeof this.props.username !== 'undefined' && category === 'feed') {
+        if (typeof username !== 'undefined' && category === 'feed') {
             page_title = 'My feed'; // todo: localization
         } else {
             switch (topics_order) {
@@ -198,7 +197,7 @@ class PostsIndex extends React.Component {
             }
         }
 
-        const layoutClass = this.props.blogmode
+        const layoutClass = blogmode
             ? ' layout-block'
             : ' layout-list';
 
@@ -250,12 +249,12 @@ class PostsIndex extends React.Component {
                     )}
                 </article>
                 <aside className="c-sidebar c-sidebar--right">
-                    {!this.props.username ? (
+                    {!username ? (
                         <SidebarNewUsers />
                     ) : (
                         <div>
                             {/* <SidebarStats steemPower={123} followers={23} reputation={62} />  */}
-                            <SidebarLinks username={this.props.username} />
+                            <SidebarLinks username={username} />
                         </div>
                     )}
                 </aside>
@@ -282,26 +281,29 @@ class PostsIndex extends React.Component {
     }
 }
 
+const mapDispatchToProps = dispatch => {
+    return {
+        requestData: args => dispatch(fetchDataSagaActions.requestData(args)),
+    };
+};
+
+const mapStateToProps = state => {
+    return {
+        discussions: state.global.get('discussion_idx'),
+        status: state.global.get('status'),
+        loading: state.app.get('loading'),
+        accounts: state.global.get('accounts'),
+        username:
+            state.user.getIn(['current', 'username']) ||
+            state.offchain.get('account'),
+        blogmode: state.app.getIn(['user_preferences', 'blogmode']),
+    };
+};
+
 module.exports = {
     path: ':order(/:category)',
     component: connect(
-        state => {
-            return {
-                discussions: state.global.get('discussion_idx'),
-                status: state.global.get('status'),
-                loading: state.app.get('loading'),
-                accounts: state.global.get('accounts'),
-                username:
-                    state.user.getIn(['current', 'username']) ||
-                    state.offchain.get('account'),
-                blogmode: state.app.getIn(['user_preferences', 'blogmode']),
-            };
-        },
-        dispatch => {
-            return {
-                requestData: args =>
-                    dispatch(fetchDataSagaActions.requestData(args)),
-            };
-        }
+        mapStateToProps,
+        mapDispatchToProps
     )(PostsIndex),
 };
