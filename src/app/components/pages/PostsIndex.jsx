@@ -12,6 +12,7 @@ import { isFetchingOrRecentlyUpdated } from 'app/utils/StateFunctions';
 import Callout from 'app/components/elements/Callout';
 // import SidebarStats from 'app/components/elements/SidebarStats';
 import SidebarLinks from 'app/components/elements/SidebarLinks';
+import DropdownMenu from 'app/components/elements/DropdownMenu';
 import SidebarNewUsers from 'app/components/elements/SidebarNewUsers';
 import ArticleLayoutSelector from 'app/components/modules/ArticleLayoutSelector';
 import Topics from './Topics';
@@ -144,6 +145,27 @@ class PostsIndex extends React.Component {
         const fetching = (status && status.fetching) || this.props.loading;
         const { showSpam } = this.state;
 
+
+        const sort_orders = [
+            ['trending', tt('main_menu.trending')],
+            ['created', tt('g.new')],
+            ['hot', tt('main_menu.hot')],
+            ['promoted', tt('g.promoted')],
+        ];
+        if (current_account_name)
+            sort_orders.unshift(['home', tt('header_jsx.home')]);
+        const sort_order_menu = sort_orders
+            .filter(so => so[0] !== sort_order)
+            .map(so => ({
+                link: sortOrderToLink(so[0], topic, current_account_name),
+                value: so[1],
+            }));
+        const selected_sort_order = sort_orders.find(
+            so => so[0] === sort_order
+        );
+
+        
+
         // If we're at one of the four sort order routes without a tag filter,
         // use the translated string for that sort order, f.ex "trending"
         //
@@ -193,6 +215,15 @@ class PostsIndex extends React.Component {
                         <div className="articles__header-col">
                             <h1 className="articles__h1">{page_title}</h1>
                         </div>
+                        <span>IAIN</span>
+                        {selected_sort_order && (
+                            <DropdownMenu
+                                className="Header__sort-order-menu menu-hide-for-large"
+                                items={sort_order_menu}
+                                selected={selected_sort_order[1]}
+                                el="li"
+                            />
+                        )}
                         <div className="articles__header-col articles__header-col--right">
                             <div className="articles__tag-selector">
                                 <Topics
