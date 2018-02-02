@@ -238,7 +238,7 @@ class Header extends React.Component {
                                         <Icon name="logo" className="logo-for-mobile" />
                                         <Icon name="logotype" className="logo-for-large" />  */}
                                         <svg
-                                            className="Header__logo--iain"
+                                            className="Header__logo-icon"
                                             width="148px"
                                             height="30px"
                                             viewBox="0 0 148 38"
